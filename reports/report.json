@@ -1,0 +1,186 @@
+{
+  "total_patents": 350093,
+  "top_inventors": [
+    {
+      "rank": 1,
+      "name": "Tao Luo",
+      "country": "US",
+      "patents": 1057
+    },
+    {
+      "rank": 2,
+      "name": "Junyi Li",
+      "country": "US",
+      "patents": 592
+    },
+    {
+      "rank": 3,
+      "name": "Xiaoxia Zhang",
+      "country": "US",
+      "patents": 549
+    },
+    {
+      "rank": 4,
+      "name": "Jing Sun",
+      "country": "US",
+      "patents": 446
+    },
+    {
+      "rank": 5,
+      "name": "Peter Gaal",
+      "country": "US",
+      "patents": 353
+    },
+    {
+      "rank": 6,
+      "name": "Frederick E. Shelton, IV",
+      "country": "US",
+      "patents": 324
+    },
+    {
+      "rank": 7,
+      "name": "Wanshi Chen",
+      "country": "US",
+      "patents": 308
+    },
+    {
+      "rank": 8,
+      "name": "Esmael Hejazi Dinan",
+      "country": "US",
+      "patents": 307
+    },
+    {
+      "rank": 9,
+      "name": "Yan Zhou",
+      "country": "US",
+      "patents": 304
+    },
+    {
+      "rank": 10,
+      "name": "Li Zhang",
+      "country": "US",
+      "patents": 303
+    }
+  ],
+  "top_companies": [
+    {
+      "rank": 1,
+      "name": "SAMSUNG DISPLAY CO., LTD.",
+      "country": "KR",
+      "patents": 10016
+    },
+    {
+      "rank": 2,
+      "name": "QUALCOMM Incorporated",
+      "country": "US",
+      "patents": 3871
+    },
+    {
+      "rank": 3,
+      "name": "Taiwan Semiconductor Manufacturing Company, Ltd.",
+      "country": "TW",
+      "patents": 3687
+    },
+    {
+      "rank": 4,
+      "name": "International Business Machines Corporation",
+      "country": "US",
+      "patents": 3661
+    },
+    {
+      "rank": 5,
+      "name": "CANON KABUSHIKI KAISHA",
+      "country": "JP",
+      "patents": 2940
+    },
+    {
+      "rank": 6,
+      "name": "Apple Inc.",
+      "country": "US",
+      "patents": 2927
+    },
+    {
+      "rank": 7,
+      "name": "LG ELECTRONICS INC.",
+      "country": "KR",
+      "patents": 2602
+    },
+    {
+      "rank": 8,
+      "name": "Micron Technology, Inc.",
+      "country": "US",
+      "patents": 2235
+    },
+    {
+      "rank": 9,
+      "name": "Intel Corporation",
+      "country": "US",
+      "patents": 2158
+    },
+    {
+      "rank": 10,
+      "name": "HUAWEI TECHNOLOGIES CO., LTD.",
+      "country": "CN",
+      "patents": 2139
+    }
+  ],
+  "top_countries": [
+    {
+      "country": "US",
+      "patents": 177742,
+      "pct_share": 44.14
+    },
+    {
+      "country": "CN",
+      "patents": 42416,
+      "pct_share": 10.53
+    },
+    {
+      "country": "JP",
+      "patents": 41341,
+      "pct_share": 10.27
+    },
+    {
+      "country": "KR",
+      "patents": 25042,
+      "pct_share": 6.22
+    },
+    {
+      "country": "DE",
+      "patents": 17856,
+      "pct_share": 4.43
+    },
+    {
+      "country": "TW",
+      "patents": 14382,
+      "pct_share": 3.57
+    },
+    {
+      "country": "GB",
+      "patents": 10195,
+      "pct_share": 2.53
+    },
+    {
+      "country": "CA",
+      "patents": 10034,
+      "pct_share": 2.49
+    },
+    {
+      "country": "IN",
+      "patents": 9617,
+      "pct_share": 2.39
+    },
+    {
+      "country": "FR",
+      "patents": 7385,
+      "pct_share": 1.83
+    }
+  ],
+  "yearly_trends": [
+    {
+      "year": 2023,
+      "patents": 350093
+    }
+  ],
+  "generated_at": "2026-05-03T18:32:58.591946"
+}
