@@ -3,13 +3,13 @@
 ~~~~~~~~~~~~~~~~
 Downloads the required PatentsView TSV files from the USPTO Open Data Portal.
 
-Tables downloaded (for the configured PATENT_YEAR):
-  - g_patent               → patent_id, title, date
-  - g_application          → filing_date
-  - g_patent_abstract      → abstract text
-  - g_inventor_disambiguated  → inventor names + location
-  - g_assignee_disambiguated  → assignee/company names
-  - g_location_disambiguated  → country / geo info
+Tables downloaded (full historical dataset — no year filter):
+  - g_patent                      → patent_id, title, date
+  - g_application                 → filing_date
+  - g_patent_abstract             → abstract text (all years)
+  - g_inventor_disambiguated      → inventor names + location
+  - g_assignee_disambiguated      → assignee/company names
+  - g_location_disambiguated      → country / geo info
 
 Run:
     python scripts/01_fetch_data.py
@@ -24,24 +24,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Config ───────────────────────────────────────────────────────────────────
-YEAR       = os.getenv("PATENT_YEAR", "2023")
-RAW_DIR    = Path("data/raw")
+RAW_DIR  = Path("data/raw")
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 # PatentsView bulk data base URL (USPTO Open Data Portal mirror)
 BASE_URL = "https://s3.amazonaws.com/data.patentsview.org/download"
 
-# Tables that are split per year (abstract, claims) vs. single-file tables
-# For the core metadata tables we download the full file (they are reasonably sized).
-# The abstract file is also needed and is per-year split.
+# All tables — full files, no year split.
 TABLES = {
     # (filename on S3, description)
-    "g_patent.tsv.zip":                   "Core patent metadata",
-    "g_application.tsv.zip":              "Application filing dates",
-    f"g_patent_abstract_{YEAR}.tsv.zip":  f"Patent abstracts ({YEAR})",
-    "g_inventor_disambiguated.tsv.zip":   "Disambiguated inventors",
-    "g_assignee_disambiguated.tsv.zip":   "Disambiguated assignees (companies)",
-    "g_location_disambiguated.tsv.zip":   "Location / country data",
+    "g_patent.tsv.zip":                  "Core patent metadata (all years)",
+    "g_application.tsv.zip":             "Application filing dates (all years)",
+    "g_patent_abstract.tsv.zip":         "Patent abstracts (all years)",
+    "g_inventor_disambiguated.tsv.zip":  "Disambiguated inventors",
+    "g_assignee_disambiguated.tsv.zip":  "Disambiguated assignees (companies)",
+    "g_location_disambiguated.tsv.zip":  "Location / country data",
 }
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,7 +69,7 @@ def download_file(url: str, dest: Path) -> None:
 def main():
     print("=" * 60)
     print("  PatentsView Data Fetcher")
-    print(f"  Year filter: {YEAR}")
+    print("  Scope: ALL records (no year filter)")
     print("=" * 60)
 
     for filename, desc in TABLES.items():

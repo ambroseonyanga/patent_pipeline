@@ -9,6 +9,7 @@ Run:
 
 import os
 import json
+import decimal
 from pathlib import Path
 
 import pandas as pd
@@ -183,10 +184,25 @@ def get_connection():
     )
 
 
+# FIX 2: Use psycopg2 cursor directly — avoids the SQLAlchemy/DBAPI2 warning.
+# Also converts any decimal.Decimal columns (PostgreSQL NUMERIC/ROUND results)
+# to float so pandas Styler .bar() and formatting work without matplotlib.
 @st.cache_data(ttl=300)
 def run_query(sql: str, params=None) -> pd.DataFrame:
     conn = get_connection()
-    return pd.read_sql_query(sql, conn, params=params)
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        cols = [desc[0] for desc in cur.description]
+        rows = cur.fetchall()
+    df = pd.DataFrame(rows, columns=cols)
+    # Cast decimal.Decimal columns → float (psycopg2 returns NUMERIC as Decimal)
+    for col in df.columns:
+        if not df[col].empty and isinstance(
+            df[col].dropna().iloc[0] if not df[col].dropna().empty else None,
+            decimal.Decimal,
+        ):
+            df[col] = df[col].astype(float)
+    return df
 
 
 # ── Helper: plotly theme ──────────────────────────────────────────────────────
@@ -217,9 +233,14 @@ with st.sidebar:
     min_yr = int(year_range["mn"].iloc[0])
     max_yr = int(year_range["mx"].iloc[0])
 
-    selected_years = st.slider(
-        "Year range", min_yr, max_yr, (min_yr, max_yr)
-    )
+    # FIX 1: Guard against min == max (single-year dataset)
+    if min_yr == max_yr:
+        st.info(f"All data is from {min_yr}. Year filter not applicable.")
+        selected_years = (min_yr, max_yr)
+    else:
+        selected_years = st.slider(
+            "Year range", min_yr, max_yr, (min_yr, max_yr)
+        )
 
     # Country filter
     countries_df = run_query(
@@ -253,7 +274,8 @@ with st.sidebar:
 # ── WHERE clause helpers ──────────────────────────────────────────────────────
 yr_filter = f"p.year BETWEEN {selected_years[0]} AND {selected_years[1]}"
 
-country_str = ", ".join(f"'{c}'" for c in selected_countries) if selected_countries else "''"
+country_str = (", ".join(f"'{c}'" for c in selected_countries)
+               if selected_countries else "''")
 country_filter = f"COALESCE(l.country,'?') IN ({country_str})"
 
 
@@ -324,8 +346,8 @@ with tab_overview:
         st.markdown('<div class="section-label">Patents granted per year</div>',
                     unsafe_allow_html=True)
         trend_df = run_query(
-            f"SELECT year, COUNT(*) AS patents FROM patents "
-            f"WHERE {yr_filter} GROUP BY year ORDER BY year"
+            f"SELECT p.year, COUNT(*) AS patents FROM patents p "
+            f"WHERE {yr_filter} GROUP BY p.year ORDER BY p.year"
         )
         if PLOTLY and not trend_df.empty:
             fig = go.Figure()
@@ -340,9 +362,9 @@ with tab_overview:
             ))
             fig.update_layout(**PLOTLY_LAYOUT, height=300,
                               xaxis_title="Year", yaxis_title="Patents")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
-            st.dataframe(trend_df, use_container_width=True)
+            st.dataframe(trend_df, width='stretch')
 
     # ── Top 10 companies mini chart ──
     with col_r:
@@ -367,9 +389,9 @@ with tab_overview:
             ))
             fig2.update_layout(**PLOTLY_LAYOUT, height=300,
                                xaxis_title="Patents", yaxis_title="")
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')
         else:
-            st.dataframe(co_df, use_container_width=True)
+            st.dataframe(co_df, width='stretch')
 
     # ── Country pie ──
     st.markdown("---")
@@ -397,7 +419,7 @@ with tab_overview:
         fig3.update_layout(**PLOTLY_LAYOUT, height=380,
                            legend=dict(orientation="v", x=1.02))
         fig3.update_traces(textfont_color="#e8eaf0", textfont_size=12)
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width='stretch')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -443,12 +465,11 @@ with tab_inventors:
             ))
             fig.update_layout(**PLOTLY_LAYOUT, height=max(350, top_n * 32),
                               xaxis_title="Patents", yaxis_title="")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     with col_r:
         st.markdown('<div class="section-label">Data table</div>',
                     unsafe_allow_html=True)
-        # Styled rank table
         for idx, row in inv_df.iterrows():
             rank = idx + 1
             st.markdown(
@@ -488,9 +509,8 @@ with tab_inventors:
     st.dataframe(
         rank_df.style
             .format({"pct": "{:.4f}%", "patents": "{:,}"})
-            .background_gradient(subset=["patents"],
-                                 cmap="YlOrBr"),
-        use_container_width=True,
+            .bar(subset=["patents"], color="#f5a623"),
+        width='stretch',
         height=400,
     )
 
@@ -531,7 +551,7 @@ with tab_companies:
                           height=max(350, top_n * 32),
                           coloraxis_showscale=False,
                           xaxis_title="Patents", yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     # ── Q6: CTE – significant companies ──
     st.markdown("---")
@@ -550,7 +570,7 @@ with tab_companies:
             WHERE {yr_filter}
             GROUP BY c.name, l.country
         ),
-        totals AS (SELECT COUNT(*) AS total FROM patents WHERE {yr_filter})
+        totals AS (SELECT COUNT(*) AS total FROM patents p WHERE {yr_filter})
         SELECT company, country, patents,
                ROUND(100.0 * patents / total, 4) AS pct_of_total
         FROM company_counts CROSS JOIN totals
@@ -562,7 +582,7 @@ with tab_companies:
         cte_df.style
             .format({"pct_of_total": "{:.4f}%", "patents": "{:,}"})
             .bar(subset=["patents"], color="#1e3a5f"),
-        use_container_width=True,
+        width='stretch',
         height=420,
     )
 
@@ -610,7 +630,7 @@ with tab_countries:
                               coloraxis_showscale=False,
                               xaxis_title="Country",
                               yaxis_title="Patents")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     with col_r:
         st.markdown('<div class="section-label">Full table</div>',
@@ -619,7 +639,7 @@ with tab_countries:
             ctry_full.style
                 .format({"patents": "{:,}", "pct_share": "{:.2f}%"})
                 .bar(subset=["pct_share"], color="#1e2d4a"),
-            use_container_width=True,
+            width='stretch',
             height=420,
         )
 
@@ -655,7 +675,7 @@ with tab_trends:
             ))
             fig.update_layout(**PLOTLY_LAYOUT, height=350,
                               xaxis_title="Year", yaxis_title="Patents")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         with col_r:
             st.markdown('<div class="section-label">Year-over-year change</div>',
@@ -672,17 +692,22 @@ with tab_trends:
             fig2.update_layout(**PLOTLY_LAYOUT, height=350,
                                xaxis_title="Year",
                                yaxis_title="YoY Change")
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')
 
     # Full data table
     st.markdown("---")
     st.dataframe(
         trend_full.style
             .format({"patents": "{:,}", "yoy_change": "{:+,.0f}"})
-            .applymap(lambda v: "color:#4ec9a0" if isinstance(v, (int,float)) and v > 0
-                      else ("color:#e05c97" if isinstance(v,(int,float)) and v < 0 else ""),
-                      subset=["yoy_change"]),
-        use_container_width=True,
+            .applymap(
+                lambda v: (
+                    "color:#4ec9a0" if isinstance(v, (int, float)) and v > 0
+                    else ("color:#e05c97" if isinstance(v, (int, float)) and v < 0
+                          else "")
+                ),
+                subset=["yoy_change"],
+            ),
+        width='stretch',
     )
 
 
@@ -729,7 +754,7 @@ with tab_explore:
         f'Showing {len(join_df):,} results</p>',
         unsafe_allow_html=True,
     )
-    st.dataframe(join_df, use_container_width=True, height=500)
+    st.dataframe(join_df, width='stretch', height=500)
 
     # Download button
     csv_data = join_df.to_csv(index=False).encode("utf-8")

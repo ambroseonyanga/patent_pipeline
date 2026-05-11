@@ -6,11 +6,13 @@ and writes clean CSVs to data/clean/.
 
 Steps per table:
   - Drop rows with missing critical fields
-  - Normalize text (strip whitespace, title-case names)
+  - Normalize text (strip whitespace)
   - Parse / validate dates
-  - Filter to the configured PATENT_YEAR
   - Deduplicate
   - Save clean CSV
+
+NOTE: No year filter is applied — all records across all years are kept.
+      The 'year' column is preserved for trend analysis in the dashboard.
 
 Run:
     python scripts/02_clean_data.py
@@ -24,7 +26,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-YEAR      = int(os.getenv("PATENT_YEAR", "2023"))
 RAW_DIR   = Path("data/raw")
 CLEAN_DIR = Path("data/clean")
 CLEAN_DIR.mkdir(parents=True, exist_ok=True)
@@ -62,6 +63,8 @@ def clean_patents() -> pd.DataFrame:
     """
     Source: g_patent.tsv.zip
     Columns used: patent_id, patent_title, patent_date, patent_type
+
+    All years are retained — no year filter applied.
     """
     df = read_tsv_from_zip(RAW_DIR / "g_patent.tsv.zip")
 
@@ -74,10 +77,11 @@ def clean_patents() -> pd.DataFrame:
 
     df = df[["patent_id", "title", "grant_date", "patent_type"]].copy()
 
+    # Parse date, extract year (kept for trend analysis)
     df["grant_date"] = pd.to_datetime(df["grant_date"], errors="coerce")
     df["year"]       = df["grant_date"].dt.year
 
-    df = df[df["year"] == YEAR].copy()
+    # Drop rows missing critical fields
     df = df.dropna(subset=["patent_id", "title", "grant_date"])
     df["title"] = df["title"].str.strip()
     df = df.drop_duplicates(subset="patent_id")
@@ -113,12 +117,13 @@ def clean_applications(patent_ids: set) -> pd.DataFrame:
 
 def clean_abstracts(patent_ids: set) -> pd.DataFrame:
     """
-    Source: g_patent_abstract.tsv.zip
-    Columns used: patent_id, patent_abstract
+    Source: g_patent_abstract.tsv.zip  (full file, all years)
+    Columns used: patent_id, patent_abstract (renamed to abstract)
     """
+    # Prefer the full (non-year-split) file; fall back to year-split if present
     candidates = [
-        RAW_DIR / f"g_patent_abstract_{YEAR}.tsv.zip",
         RAW_DIR / "g_patent_abstract.tsv.zip",
+        RAW_DIR / f"g_patent_abstract_{os.getenv('PATENT_YEAR', '2023')}.tsv.zip",
     ]
     zip_path = next((p for p in candidates if p.exists()), None)
 
@@ -130,13 +135,14 @@ def clean_abstracts(patent_ids: set) -> pd.DataFrame:
         return empty
 
     print(f"    Using: {zip_path.name}")
+    # PatentsView uses 'patent_abstract' as the column name
     df = read_tsv_from_zip(zip_path, usecols=["patent_id", "patent_abstract"])
+    df = df.rename(columns={"patent_abstract": "abstract"})
 
     df = df[df["patent_id"].isin(patent_ids)].copy()
-    df = df.dropna(subset=["patent_id", "patent_abstract"])
-    df["patent_abstract"] = df["patent_abstract"].str.strip()
+    df = df.dropna(subset=["patent_id", "abstract"])
+    df["abstract"] = df["abstract"].str.strip()
     df = df.drop_duplicates(subset="patent_id")
-    df = df.rename(columns={"patent_abstract": "abstract"})
 
     save_clean(df, "clean_abstracts")
     return df
@@ -164,6 +170,9 @@ def clean_inventors(patent_ids: set) -> pd.DataFrame:
         + " "
         + df["disambig_inventor_name_last"].fillna("").str.strip()
     ).str.strip()
+
+    # Drop inventors whose name resolved to an empty string
+    df = df[df["name"].str.len() > 0]
 
     df = df.rename(columns={"location_id": "inventor_location_id"})
     df = df[["patent_id", "inventor_id", "name", "inventor_location_id"]].copy()
@@ -228,13 +237,15 @@ def clean_locations() -> pd.DataFrame:
 
 def main():
     print("=" * 60)
-    print(f"  PatentsView Data Cleaner  |  Year: {YEAR}")
+    print("  PatentsView Data Cleaner  |  Scope: ALL years")
     print("=" * 60)
 
     print(f"\n[1/6] Cleaning patents …")
     patents_df = clean_patents()
     patent_ids = set(patents_df["patent_id"])
-    print(f"      → {len(patent_ids):,} patents for {YEAR}")
+    yr_min = int(patents_df["year"].min())
+    yr_max = int(patents_df["year"].max())
+    print(f"      → {len(patent_ids):,} total patents  ({yr_min}–{yr_max})")
 
     print(f"\n[2/6] Cleaning applications …")
     clean_applications(patent_ids)
